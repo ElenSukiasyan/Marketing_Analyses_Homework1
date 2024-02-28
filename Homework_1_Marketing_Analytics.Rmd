@@ -1,0 +1,157 @@
+---
+title: "Marketing Analytics"
+author: "Elen Sukiasyan"
+date: "2/26/2024"
+output: pdf_document
+---
+# Homework 1
+# Cutting Plastic Lids
+## The Good Cup
+## 1.Description
+Every year, 500 billion disposable cups end up in landfills. Paper cups sound good in theory, but most use a plastic laminate as a sealant, which makes them difficult to recycle. This is why Choose Planet A’s the Good Cup is glued together with a water-based coating, called aqueous, that makes it leak-proof, recyclable (up to seven times), and even biodegradable. “If you throw it in the water or the forest,” Choose Planet A’s co-founder and managing director Cyril Drouet says, “it will biodegrade and disappear.” The cup also has a foldable paper lid, cutting the need for a plastic top. It will be available in the U.S. later this year.
+Hence, data is a country-wise.
+
+## 2.Why I have chosen this topic
+Choosing the topic of "The Good Cup” is not only a matter of interest but also a personal conviction stemming from a concern for our environment. Last year, my research delved into the impact of plastic pollution, particularly concentrating on how disposable items harm our planet, oceans, seas, animals and our overall surroundings. It was eye-opening to learn that even things we think are recyclable and are labeled as recyclable, aren't actually fully harmless. For example paper cups often have a thin layer of plastic inside that makes them hard to recycle properly.
+
+But "The Good Cup" is different. This innovation made me believe that not everything is lost.  It's designed to be leak-proof using a special water-based coating. This means, that it can be recycled up to seven times and even be biodegradable breaking down naturally over time.
+
+So, I chose this topic because it represents a real solution to a big problem. And I believe, that "The Good Cup" is a step towards a cleaner future.
+
+
+## 3.Statista innovation justification
+I decided to focus on the usage of disposable cups and plates as a look-alike innovation because it aligns perfectly with my topic. The only difference about the topics is that the statista dataset has not only cups but also plates in research. However, the concept is completely the same, and statistically, it is related to my data too.
+
+The dataset shows the usage of disposable cups and plates from 2011 to 2024, giving an opportunity to investigate the potential shift towards more sustainable alternatives, such as "The Good Cup." By examining the trends over time, my goal is to understand the readiness of consumers to accept eco-friendly solutions and the potential impact of innovations like "The Good Cup" on reducing plastic waste.
+
+Hence, this dataset offers valuable insights about consumer behaviour and market dynamics, allowing me to estimate the market potential for sustainable alternatives and make informed predictions.
+
+## 4.Estimating Bass Model 
+### cleaning the data
+```{r}
+library(readxl)
+library(dplyr)
+
+# Read the Excel file, we are taking the second sheet as our excel file has 2 pages
+data <- read_excel('/Users/elensukiasyan/Downloads/Statista_innovation.xlsx', sheet = 2)
+
+# choosing the rows we need and assigning them column names that we want
+data <- data[3:16, ]
+colnames(data) <- c("Year", "Yes", "No", "don't know")
+
+# Remove the last character from the Year column in the specified rows (as I had * from 2021 to 2024 and could not make it an integer)
+rows_to_modify <- 11:14
+data$Year[rows_to_modify] <- substr(data$Year[rows_to_modify], 1, nchar(data$Year[rows_to_modify]) - 1)
+data
+# changing characters to integers
+data$Year <- as.integer(data$Year)
+data$Yes <- as.integer(data$Yes)
+
+# Calculating cumulative usage and making a new column by cumulative usage values
+data$cumulative_usage <- cumsum(data$Yes)
+
+head(data)
+colnames(data)
+```
+
+### Printing cumulative plot 
+```{r}
+library(ggplot2)
+cumulative_plot <- ggplot(data, aes(x = Year, y = cumulative_usage)) +
+  geom_bar(stat = 'identity') +
+  labs(title = 'Cumulative Usage of Disposable Cups and Plates in the U.S. (2011-2024)',
+       x = 'Year',
+       y = 'Cumulative Usage')
+cumulative_plot
+```
+
+### Plotting historical sales
+```{r}
+ggplot(data, aes(x = Year, y = Yes)) +
+  geom_bar(stat = 'identity') +
+  geom_text(aes(label = Yes), vjust = -0.5) +  # Adding data labels above bars
+  labs(x = "Year", y = "Sales", title = "Historical Sales")
+```
+
+bass.f is the fraction of the total market that adopts at time t
+bass.F is the fraction of the total market that has adopted up to and including time t
+q is imitation rate
+p is innovation rate
+```{r}
+bass.F <- function(t,p,q){
+(1-exp(-(p+q)*t))/
+(1+(q/p)*exp(-(p+q)*t))
+}
+
+bass.f <- function(t,p,q){
+((p+q)^2/p)*exp(-(p+q)*t)/(1+(q/p)*exp(-(p+q)*t))^2
+}
+```
+
+### Estimating Bass model
+```{r}
+t <- 1:nrow(data) 
+sales <- data$Yes
+
+# Fit the Bass model to the data
+bass_fit <- nls(sales ~   m * (((p + q)^2 / p) * exp(-(p + q) * t)) / (1 + (q / p) * exp(-(p + q) * t))^2,
+                start = list(m = sum(sales), p= 0.02, q= 0.4))
+summary(bass_fit)
+```
+
+## Extracting p and q
+```{r}
+p <- coef(bass_fit)["p"]
+q <- coef(bass_fit)["q"]
+m <- coef(bass_fit)["m"]
+p
+q
+m
+```
+
+## 5.Make predictions of the diffusion of the innovation 
+```{r}
+
+library(diffusion)
+sales <- data$Yes
+diff_m <- diffusion(sales)
+
+# Extract parameter estimates
+p <- round(diff_m$w, 4)[1]
+q <- round(diff_m$w, 4)[2]
+m <- round(diff_m$w, 4)[3]
+p
+q
+m
+```
+
+
+## 6.Estimate the number of adopters by period. Here we are going to use 5th point's (method 2) parameter values as there are better fot to our data
+```{r}
+p
+q
+library(ggpubr)
+sales = ggplot(data, aes(x = Year, y = Yes)) +
+  geom_bar(stat = 'identity') +
+  labs(x = "Year", y = "Sales", title = " Sales")
+
+# Plot adoptions at time t
+time_ad <- ggplot(data.frame(t = c(1:14)), aes(t)) +
+stat_function(fun = bass.f, args = c(p=0.05106, q=0.09259)) +
+labs(title = 'The Good Cup - Adoptions at Time t')
+
+# Arrange the plots side by side
+ggarrange(sales, time_ad)
+```
+
+
+## Estimated number of adopters by time
+```{r}
+data$predicted = bass.f(1:14, p = 0.0127 , q = 0.0225 )*16315.74 
+ggplot(data , aes(x = Year, y = Yes)) +
+geom_bar(stat = 'identity') +
+geom_point(mapping = aes(x=Year, y=predicted), color = 'red')+
+labs( x= ' ', y = 'sales')+scale_x_continuous(breaks = 2011:2024, labels = 2011:2024)
+```
+
+
